@@ -15,6 +15,8 @@
 # limitations under the License.
 ############################################################################
 
+function version { echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; }
+
 if [ $# -lt 2 ]; then
 	echo "Usage: $0 [-u] [-t] <OS name> <pcie slot>"
 	echo "           -u: only map user function"
@@ -26,8 +28,21 @@ if [ $# -lt 2 ]; then
 	echo
 	echo "========================================================"
 	echo
+	# starting from 2021.2, the api for the xrt utilities changed
+	XRT_VERSION=$(cat /opt/xilinx/xrt/version.json | python3 -c "import sys, json; print(json.load(sys.stdin)['BUILD_BRANCH'])")
+	XRT_LEGACY=1
+	if [ $(version "$XRT_VERSION") -ge $(version "2021.1") ]; then XRT_LEGACY=0; fi
+	#echo "XRT_VERSION: $XRT_VERSION; LEGACY: $XRT_LEGACY"
 	echo "Xilinx devices:"
-	[ -f /opt/xilinx/xrt/bin/xbmgmt ] && /opt/xilinx/xrt/bin/xbmgmt scan || lspci -d 10ee:
+	if [ -f /opt/xilinx/xrt/bin/xbmgmt ]; then
+		if [ $XRT_LEGACY == "1" ]; then
+			/opt/xilinx/xrt/bin/xbmgmt scan
+		else
+			/opt/xilinx/xrt/bin/xbmgmt examine | sed -e '0,/Devices present/d' -e '/^$/d'
+		fi
+	else
+		lspci -d 10ee:
+	fi
 	echo
 	echo
 	echo "========================================================"

@@ -14,6 +14,8 @@
 # limitations under the License.
 ############################################################################
 
+function version { echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; }
+
 _faas() 
 {
     local cur prev hosts devices suggestions device_suggestions
@@ -42,9 +44,20 @@ _faas()
 		# more than one suggestions resolved,
 		# respond with the full device suggestions
 		declare -a device_suggestions
+		XRT_VERSION=$(cat /opt/xilinx/xrt/version.json | python3 -c "import sys, json; print(json.load(sys.stdin)['BUILD_BRANCH'])")
+		XRT_LEGACY=1
+		if [ $(version "$XRT_VERSION") -ge $(version "2021.1") ]; then XRT_LEGACY=0; fi
+		#echo "XRT_VERSION: $XRT_VERSION; LEGACY: $XRT_LEGACY"
+		XILINX_DEVICES=""
+		if [ $XRT_LEGACY == "1" ]; then
+			XILINX_DEVICES=$(/opt/xilinx/xrt/bin/xbmgmt scan)
+		else
+			XILINX_DEVICES=$(/opt/xilinx/xrt/bin/xbmgmt examine | sed -e '0,/Devices present/d' -e '/^$/d')
+		fi
+	
 		for ((dev=0;dev<${#suggestions[@]};dev++)); do
 			#device_suggestions="$device_suggestions\n$dev $(/opt/xilinx/xrt/bin/xbutil scan | grep ":$dev:")"
-			device_suggestions+=("${suggestions[$dev]}-->$(/opt/xilinx/xrt/bin/xbutil scan | grep ":${suggestions[$dev]}:" | xargs echo -n)")
+			device_suggestions+=("${suggestions[$dev]}-->$(echo "$XILINX_DEVICES" | grep ":${suggestions[$dev]}:" | xargs echo -n)")
 		done
 		COMPREPLY=("${device_suggestions[@]}")
 	fi
